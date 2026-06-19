@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File Editor — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f2ee;
+      --sidebar-border: #d6d3cb;
+      --panel-bg: #ffffff;
+      --panel-border: #2a2a2a;
+      --accent: #c8451a;
+      --text-primary: #1a1a1a;
+      --text-muted: #7a7570;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* ── Fade-in ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Auth overlay ── */
+    #authOverlay {
+      animation: fadeUp 0.3s ease both;
+    }
+
+    .auth-box {
+      background: var(--panel-bg);
+      border: 1.5px solid var(--panel-border);
+      border-radius: 6px;
+      box-shadow: 4px 4px 0px var(--panel-border);
+      width: 340px;
+      padding: 32px 28px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .auth-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .auth-logo .avatar { width: 34px; height: 34px; font-size: 14px; }
+    .auth-logo-name { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+
+    .auth-tabs {
+      display: flex;
+      border-bottom: 1.5px solid var(--sidebar-border);
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1.5px;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .auth-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .auth-fields { display: flex; flex-direction: column; gap: 10px; }
+
+    .auth-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .auth-field label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .auth-field input {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 8px 10px;
+      border: 1.5px solid var(--sidebar-border);
+      border-radius: 3px;
+      background: var(--bg);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .auth-field input:focus { border-color: var(--accent); }
+
+    .auth-error {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+      min-height: 16px;
+    }
+
+    .btn-auth {
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 10px;
+      border-radius: 3px;
+      border: 1.5px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-auth:hover { background: transparent; color: var(--accent); }
+    .btn-auth:active { transform: scale(0.98); }
+  </style>
+</head>
+<body>
+
+  <!-- ── Auth Box ── -->
+  <div id="authOverlay">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <div class="avatar">FE</div>
+        <span class="auth-logo-name">File Editor</span>
+      </div>
+
+      <div class="auth-tabs">
+        <div class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Login</div>
+        <div class="auth-tab" id="tabSignup" onclick="switchTab('signup')">Sign Up</div>
+      </div>
+
+      <div class="auth-fields">
+        <div class="auth-field">
+          <label>Username</label>
+          <input type="text" id="authUsername" placeholder="your username" autocomplete="username" />
+        </div>
+        <div class="auth-field">
+          <label>Password</label>
+          <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <div class="auth-field" id="confirmField" style="display:none">
+          <label>Confirm Password</label>
+          <input type="password" id="authConfirm" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+
+      <button class="btn-auth" id="authSubmitBtn" onclick="handleAuth()">Login</button>
+    </div>
+  </div>
+
+  <script>
+    // ── Auth state ──
+    const authUsername  = document.getElementById('authUsername');
+    const authPassword  = document.getElementById('authPassword');
+    const authConfirm   = document.getElementById('authConfirm');
+    const authError     = document.getElementById('authError');
+    const confirmField  = document.getElementById('confirmField');
+    const authSubmitBtn = document.getElementById('authSubmitBtn');
+
+    let authMode = 'login'; // 'login' | 'signup'
+
+    function switchTab(mode) {
+      authMode = mode;
+      document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+      document.getElementById('tabSignup').classList.toggle('active', mode === 'signup');
+      confirmField.style.display = mode === 'signup' ? '' : 'none';
+      authSubmitBtn.textContent = mode === 'login' ? 'Login' : 'Create Account';
+      authError.textContent = '';
+    }
+
+    async function handleAuth() {
+      const username = authUsername.value.trim();
+      const password = authPassword.value;
+      const confirm  = authConfirm.value;
+      authError.textContent = '';
+
+      if (!username) { authError.textContent = 'Username is required.'; return; }
+      if (!password) { authError.textContent = 'Password is required.'; return; }
+
+
+      // SIGNUP
+
+
+      if (authMode === 'signup') {
+        if (password !== confirm) { authError.textContent = 'Passwords do not match.'; return; }
+
+        var res = await fetch('https://ganeshgodse.pythonanywhere.com/createuser/',{
+          method: "POST",
+          headers: {"Content-Type": "application/json",},
+          body: JSON.stringify({'name':username , 'password':password}),
+        })
+
+        const result = await res.text();
+        if(result == "Username already taken"){
+          authError.textContent = 'Username already taken';
+          return;
+        }
+        loginSuccess(username);
+        return;
+      }
+
+
+      // LOGIN
+
+
+      var res = await fetch('https://ganeshgodse.pythonanywhere.com/auth/',{
+        method: "POST",
+        headers: {"Content-Type": "application/json",},
+        body: JSON.stringify({'name':username , 'password':password}),
+      })
+
+      const result = await res.text();
+      if(result == "Wrong Password!"){
+        authError.textContent = 'Password is wrong.';
+        return;
+      }
+      if(result == "No such user"){
+        authError.textContent = 'Username is wrong.';
+        return;
+      }
+      loginSuccess(username);
+
+    }
+
+    function loginSuccess(username) {
+      // Hand off the logged-in user to the editor page.
+      sessionStorage.setItem('currentUser', username);
+      window.location.href = 'editor.html';
+    }
+
+    // Allow Enter key to submit auth form
+    [authUsername, authPassword, authConfirm].forEach(el => {
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File Editor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="editor.css">
+
+<script src="https://cdn.jsdelivr.net/npm/showdown@2.1.0/dist/showdown.min.js"></script>
+
+</head>
+<body>
+
+  <header>
+    <div class="avatar" id="headerAvatar">?</div>
+    <span class="user-name" id="headerUsername">—</span>
+    <button class="btn-logout" id="logoutBtn" onclick="handleLogout()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 3H3a1 1 0 00-1 1v8a1 1 0 001 1h3"/>
+        <path d="M10 11l3-3-3-3"/>
+        <line x1="13" y1="8" x2="6" y2="8"/>
+      </svg>
+      Logout
+    </button>
+  </header>
+
+  <div class="workspace">
+
+    <aside>
+      <div class="sidebar-header">
+      Files
+      <button class="btn-new-file" id="newFileBtn" title="Create new file">+</button>
+      </div>
+      <div class="file-list" id="fileList">
+        <!-- file items will be rendered dynamically -->
+      </div>
+    </aside>
+
+    <main>
+      <!-- Editor -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot"></span>
+          <span id="editorTitle">File1</span>
+          <div class="panel-header-actions">
+            <button class="btn btn-save" id="saveBtn" title="Save file (Ctrl+S)">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M13 13H3a1 1 0 01-1-1V4l3-3h7.5L15 4.5V12a1 1 0 01-2 0z"/>
+                <rect x="5" y="9" width="6" height="4" rx="0.5"/>
+                <rect x="5" y="1" width="5" height="3" rx="0.5"/>
+              </svg>
+              Save
+            </button>
+            <button class="btn btn-download" id="downloadBtn" title="Download file">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 1v9"/>
+                <path d="M4.5 6.5L8 10l3.5-3.5"/>
+                <path d="M2 12.5v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
+              </svg>
+              Download
+            </button>
+            <button class="btn btn-preview active" id="previewToggleBtn" title="Toggle preview (Ctrl+P)">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+                <line x1="8" y1="3" x2="8" y2="13"/>
+              </svg>
+              Preview
+            </button>
+            <button class="btn btn-run" id="runBtn" title="Run file (Ctrl+Enter)">
+              <svg viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 3l10 5-10 5V3z"/>
+              </svg>
+              Run
+            </button>
+          </div>
+        </div>
+        <textarea id="editor" placeholder="Type here…" spellcheck="false"></textarea>
+        <div class="run-output" id="runOutput">
+          <div class="run-output-label">Output</div>
+          <div id="runResult"></div>
+        </div>
+      </div>
+
+      <!-- Resizer -->
+      <div class="resizer" id="resizer"></div>
+
+      <!-- Viewer -->
+      <div class="panel" id="previewPanel">
+        <div class="panel-header"><span class="panel-dot"></span></div>
+        <div class="view-panel-content" id="viewer"></div>
+        
+      </div>
+    </main>
+
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Auth guard: bounce back to login if no session ──
+    let currentUser = sessionStorage.getItem('currentUser');
+    if (!currentUser) {
+      window.location.href = 'login.html';
+    }
+
+    const headerAvatar  = document.getElementById('headerAvatar');
+    const headerUsername = document.getElementById('headerUsername');
+
+    function applyUser(username) {
+      currentUser = username;
+      const initials = username.slice(0, 2).toUpperCase();
+      headerAvatar.textContent = initials;
+      headerUsername.textContent = username;
+    }
+
+    if (currentUser) applyUser(currentUser);
+
+    function handleLogout() {
+      sessionStorage.removeItem('currentUser');
+      window.location.href = 'login.html';
+    }
+
+    let files = {};
+
+    let activeFile = null;
+
+    const editor      = document.getElementById('editor');
+    const viewer      = document.getElementById('viewer');
+    const fileList    = document.getElementById('fileList');
+    const editorTitle = document.getElementById('editorTitle');
+    const saveBtn     = document.getElementById('saveBtn');
+    const runBtn      = document.getElementById('runBtn');
+    const runOutput   = document.getElementById('runOutput');
+    const runResult   = document.getElementById('runResult');
+    const toast       = document.getElementById('toast');
+    const previewToggleBtn = document.getElementById('previewToggleBtn');
+    const previewPanel = document.getElementById('previewPanel');
+    const resizer     = document.getElementById('resizer');
+
+
+    function renderFileList() {
+      fileList.innerHTML = '';
+      Object.keys(files).forEach((name, i) => {
+        const item = document.createElement('div');
+        item.className = 'file-item' + (name === activeFile ? ' active' : '');
+        item.dataset.file = name;
+        item.textContent = name;
+        fileList.appendChild(item);
+      });
+    }
+
+    function loadFile(name) {
+      activeFile = name;
+      editor.value = files[name];
+      viewer.textContent = files[name];
+      editorTitle.textContent = name;
+      renderFileList();
+    }
+
+    function createNewFile() {
+      let name = prompt('Enter file name:');
+      if (!name) return;
+      name = name.trim();
+      if (!name) return;
+
+      if (files.hasOwnProperty(name)) {
+        showToast(`⚠ "${name}" already exists`);
+        return;
+      }
+
+      // Persist current edits to the file you're leaving
+      if (activeFile) files[activeFile] = editor.value;
+
+      files[name] = '';
+      loadFile(name);
+      showToast(`✓ ${name} created`);
+    }
+
+    const newFileBtn = document.getElementById('newFileBtn');
+    newFileBtn.addEventListener('click', createNewFile);
+
+    async function init(){
+      var temp = await fetch('https://ganeshgodse.pythonanywhere.com/retrieve/',{
+          method:"POST",
+          headers: {"Content-Type": "application/json",},
+          body:JSON.stringify({"name":currentUser})
+        }
+      )
+
+      const res = await temp.json();
+
+      files = res;
+
+      const firstFile = Object.keys(files)[0];
+      if (firstFile) loadFile(firstFile);
+    }
+
+    init();
+
+
+    // ── Preview toggle ──
+    let previewVisible = true;
+    previewToggleBtn.addEventListener('click', togglePreview);
+    function togglePreview() {
+      previewVisible = !previewVisible;
+      previewPanel.classList.toggle('hidden', !previewVisible);
+      resizer.classList.toggle('hidden', !previewVisible);
+      previewToggleBtn.classList.toggle('active', previewVisible);
+      // Always reset editor to fill available space
+      const editorPanel = editor.closest('.panel');
+      editorPanel.style.flex = '';
+      editorPanel.style.width = '';
+      if (previewVisible) {
+        previewPanel.style.flex = '';
+        previewPanel.style.width = '';
+      }
+    }
+
+    // ── Resizer drag ──
+    let isResizing = false;
+    let startX, startEditorWidth, startPreviewWidth;
+
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      startX = e.clientX;
+      const main = document.querySelector('main');
+      const editorPanel = editor.closest('.panel');
+      startEditorWidth = editorPanel.getBoundingClientRect().width;
+      startPreviewWidth = previewPanel.getBoundingClientRect().width;
+      resizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const dx = e.clientX - startX;
+      const editorPanel = editor.closest('.panel');
+      const newEditorWidth = Math.max(200, startEditorWidth + dx);
+      const newPreviewWidth = Math.max(200, startPreviewWidth - dx);
+      editorPanel.style.flex = 'none';
+      editorPanel.style.width = newEditorWidth + 'px';
+      previewPanel.style.flex = 'none';
+      previewPanel.style.width = newPreviewWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isResizing) return;
+      isResizing = false;
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+
+    let toastTimer;
+    function showToast(msg) {
+      clearTimeout(toastTimer);
+      toast.textContent = msg;
+      toast.classList.add('show');
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // Save button
+    saveBtn.addEventListener('click', saveFile);// Save button — persist current content in memory (and later, to your API)
+    function saveFile() {
+      files[activeFile] = editor.value;
+      // TODO: call your API here to persist the file, e.g.
+      // await fetch('/api/files/' + activeFile, { method: 'PUT', body: editor.value });
+
+
+      var temp = fetch('https://ganeshgodse.pythonanywhere.com/save/',{
+          method:"POST",
+          headers: {"Content-Type": "application/json",},
+          body:JSON.stringify({"name":currentUser,"filename":activeFile,"text":editor.value})
+        }
+      )
+
+      console.log(temp)
+
+      showToast(`✓ ${activeFile} saved`);
+    }
+
+    // Download button — export current content as a file
+    const downloadBtn = document.getElementById('downloadBtn');
+    downloadBtn.addEventListener('click', downloadFile);
+    function downloadFile() {
+      files[activeFile] = editor.value;
+      const blob = new Blob([editor.value], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = activeFile + '.txt'; // adjust if activeFile already has an extension
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`⬇ ${activeFile} downloaded`);
+    }
+
+    // Run button — evaluates JS, or just echoes plain text
+    runBtn.addEventListener('click', runFile);
+    // var showdown  = require('showdown');
+    function runFile() {
+      files[activeFile] = editor.value;
+      // viewer.textContent = editor.value;
+
+      var text = editor.value,
+          target = document.getElementById('viewer'),
+          converter = new showdown.Converter(),
+          html = converter.makeHtml(text);
+        
+        target.innerHTML = html;
+    }
+
+
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runFile(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') { e.preventDefault(); togglePreview(); }
+    });
+
+    // File switching
+    fileList.addEventListener('click', e => {
+    const item = e.target.closest('.file-item');
+    if (!item) return;
+
+    files[activeFile] = editor.value; // save current edits in memory
+    loadFile(item.dataset.file);
+
+    runOutput.classList.remove('visible');
+    runResult.textContent = '';
+
+    editor.focus();
+  });
+
+    editor.focus();
+  </script>
+
+</body>
+</html>
